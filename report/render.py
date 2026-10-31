@@ -71,7 +71,8 @@ def verdict_text(summary: dict[str, Any]) -> list[str]:
     b = summary["betting_best_price"]
     if b["bets"]:
         lo, hi = b["roi_ci95"]
-        sig = "статистически значимо положителен" if lo > 0 else "статистически не отличается от нуля или отрицателен"
+        sig = ("статистически значимо положителен" if lo > 0 else "статистически значимо отрицателен" if hi < 0
+               else "статистически не отличается от нуля (95% ДИ включает 0)")
         lines.append(f"Ставки по правилам (value > {BETTING.min_value:.0%}, уверенность ≥ MEDIUM, лучшая цена): "
                      f"{b['bets']} ставок, ROI {b['roi_flat']:+.2%} (95% ДИ {lo:+.2%} … {hi:+.2%}) — {sig}.")
         b2 = summary["betting_bet365"]

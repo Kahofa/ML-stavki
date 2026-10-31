@@ -26,7 +26,7 @@ td.num,th.num{text-align:right}
 .HIGH{color:var(--hi);background:var(--hi-bg)}.MEDIUM{color:var(--md);background:var(--md-bg)}.LOW{color:var(--lo);background:var(--lo-bg)}
 .pos{color:var(--pos)}.neg{color:var(--neg)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
-.match h3{margin:0 0 4px}.expl{color:var(--mute);margin:8px 0 0;white-space:normal}
+.match h3{margin:0 0 4px}.grid.cards{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}@media (max-width:480px){.grid.cards{grid-template-columns:1fr}}.expl{color:var(--mute);margin:8px 0 0;white-space:normal}
 .mode{font-size:12px;padding:2px 8px;border-radius:6px;background:var(--line);margin-left:8px;vertical-align:middle}
 img.rel{max-width:520px;width:100%;border-radius:8px;border:1px solid var(--line);background:#fff}
 .verdict li{margin:4px 0}
@@ -114,7 +114,7 @@ img.rel{max-width:520px;width:100%;border-radius:8px;border:1px solid var(--line
 
 {% if details %}
 <h2>5. Подробно по матчам</h2>
-<div class="grid">{% for d in details %}<div class="card match">
+<div class="grid cards">{% for d in details %}<div class="card match">
 <h3>{{ d.home }} – {{ d.away }} <span class="badge {{ d.confidence }}">{{ d.confidence }}</span></h3>
 <div class="small">{{ d.league }} · {{ d.date }} {{ d.time_local or "" }} · полнота данных {{ d.completeness|pct }} · расхождение моделей σ={{ d.disagreement|num }} · разрыв с рынком {{ d.market_gap|pct }}{% if d.referee %} · судья {{ d.referee }}{% endif %}{% if d.actual %} · факт {{ d.actual }}{% endif %}</div>
 <div class="scroll"><table><tr><th>Рынок</th><th class="num">P</th><th class="num">Справ.</th><th class="num">Лучший</th><th class="num">Value</th><th class="num">Ставка</th></tr>
