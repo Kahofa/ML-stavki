@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Футбольные прогнозы {{ r.day }}</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1b1f24;--mute:#5d6672;--line:#e3e6ea;--acc:#2456d6;
+--hi:#167a3e;--hi-bg:#e3f4ea;--md:#8a5a00;--md-bg:#fdf1d8;--lo:#a3242b;--lo-bg:#fbe5e6;--pos:#167a3e;--neg:#a3242b}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121417;--card:#1b1e23;--ink:#e7eaee;--mute:#9aa3ad;
+--line:#2c3138;--acc:#7aa2ff;--hi:#6fd39a;--hi-bg:#173525;--md:#f0c062;--md-bg:#3a2d12;--lo:#ff8a8f;--lo-bg:#3d1c1f;--pos:#6fd39a;--neg:#ff8a8f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:32px 0 12px}h3{font-size:15px;margin:16px 0 8px}
+.sub{color:var(--mute)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0}
+.warn{border-left:4px solid var(--md);background:var(--md-bg)}
+.warn li{margin:2px 0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-weight:600;color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+td.num,th.num{text-align:right}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.HIGH{color:var(--hi);background:var(--hi-bg)}.MEDIUM{color:var(--md);background:var(--md-bg)}.LOW{color:var(--lo);background:var(--lo-bg)}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+.match h3{margin:0 0 4px}.expl{color:var(--mute);margin:8px 0 0;white-space:normal}
+.mode{font-size:12px;padding:2px 8px;border-radius:6px;background:var(--line);margin-left:8px;vertical-align:middle}
+img.rel{max-width:520px;width:100%;border-radius:8px;border:1px solid var(--line);background:#fff}
+.verdict li{margin:4px 0}
+.small{font-size:12px;color:var(--mute)}
+</style>
+</head>
+<body><div class="wrap">
+<h1>{{ "Бэктест системы" if r.mode == "backtest" else "Прогнозы на " ~ r.day }} <span class="mode">{{ {"replay": "ретро-прогноз (replay) по историческим данным", "backtest": "только бэктест", "live": "live"}[r.mode] }}</span></h1>
+<div class="sub">Лиги: {{ r.leagues|join(", ") }} · часовой пояс: Asia/Almaty · отчёт сформирован {{ r.generated_at }} UTC</div>
+{% if r.mode == "replay" %}
+<div class="card warn">Ретро-прогноз: матчи и коэффициенты взяты из исторического датасета на выбранную дату; все результаты
+начиная с этой даты скрыты от моделей. Столбец «Факт» — реальный счёт, для проверки. Это не прогноз на сегодня.</div>
+{% endif %}
+{% if r.warnings %}
+<div class="card warn"><b>Предупреждения о данных</b><ul>{% for w in r.warnings|unique %}<li>{{ w }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if summary %}
+<h2>1. Бэктест (walk-forward, без заглядывания в будущее)</h2>
+<div class="card verdict"><ul>{% for v in verdict %}<li>{{ v }}</li>{% endfor %}</ul>
+<div class="small">Сезоны {{ summary.seasons[0] }}–{{ summary.seasons[-1] }}, {{ summary.n_matches }} матчей с известным результатом и рыночной линией. Сверка собственного Elo с ClubElo: корреляция разниц рейтингов {{ summary.elo_vs_clubelo_corr|num(3) }}.</div></div>
+<div class="grid">
+<div class="card scroll"><h3>Исход 1X2</h3><table><tr><th>Модель</th><th class="num">Log-loss</th><th class="num">Brier</th><th class="num">Accuracy</th></tr>
+{% for k, v in summary.overall_1x2.items() %}<tr><td>{{ k }}</td><td class="num">{{ v.log_loss|num(4) }}</td><td class="num">{{ v.brier|num(4) }}</td><td class="num">{{ v.accuracy|pct(1) }}</td></tr>{% endfor %}</table></div>
+<div class="card scroll"><h3>Тотал 2.5 и «обе забьют»</h3><table><tr><th>Модель</th><th class="num">Log-loss</th><th class="num">Brier</th><th class="num">Acc</th></tr>
+{% for k, v in summary.ou25.items() %}<tr><td>ТБ/ТМ 2.5 · {{ k }}</td><td class="num">{{ v.log_loss|num(4) }}</td><td class="num">{{ v.brier|num(4) }}</td><td class="num">{{ v.accuracy|pct(1) }}</td></tr>{% endfor %}
+{% for k, v in summary.btts.items() %}<tr><td>ОЗ · {{ k }}</td><td class="num">{{ v.log_loss|num(4) }}</td><td class="num">{{ v.brier|num(4) }}</td><td class="num">{{ v.accuracy|pct(1) }}</td></tr>{% endfor %}</table></div>
+</div>
+<div class="grid">
+<div class="card scroll"><h3>Ставки по правилам системы</h3>
+<table><tr><th></th><th class="num">Лучшая цена</th><th class="num">Bet365</th></tr>
+{% set a = summary.betting_best_price %}{% set b = summary.betting_bet365 %}
+<tr><td>Ставок</td><td class="num">{{ a.bets }}</td><td class="num">{{ b.bets }}</td></tr>
+<tr><td>ROI (flat)</td><td class="num {{ 'pos' if a.roi_flat > 0 else 'neg' }}">{{ a.roi_flat|pct(2) }}</td><td class="num {{ 'pos' if b.roi_flat > 0 else 'neg' }}">{{ b.roi_flat|pct(2) }}</td></tr>
+<tr><td>95% ДИ ROI (bootstrap)</td><td class="num">{{ a.roi_ci95[0]|pct(1) }} … {{ a.roi_ci95[1]|pct(1) }}</td><td class="num">{{ b.roi_ci95[0]|pct(1) }} … {{ b.roi_ci95[1]|pct(1) }}</td></tr>
+<tr><td>ROI (¼ Kelly, ≤2% банка)</td><td class="num">{{ a.roi_kelly|pct(2) }}</td><td class="num">{{ b.roi_kelly|pct(2) }}</td></tr>
+<tr><td>Изменение банка (Kelly)</td><td class="num">{{ a.bankroll_growth|pct(1) }}</td><td class="num">{{ b.bankroll_growth|pct(1) }}</td></tr>
+<tr><td>Макс. просадка</td><td class="num">{{ a.max_drawdown|pct(1) }}</td><td class="num">{{ b.max_drawdown|pct(1) }}</td></tr>
+<tr><td>Hit rate / ср. коэф.</td><td class="num">{{ a.hit_rate|pct(1) }} / {{ a.avg_odds|num }}</td><td class="num">{{ b.hit_rate|pct(1) }} / {{ b.avg_odds|num }}</td></tr>
+<tr><td>CLV</td><td class="num" colspan="2">н/д — {{ summary.clv_note }}</td></tr>
+</table>
+{% if summary.betting_by_market %}<h3>По рынкам (лучшая цена)</h3><table><tr><th>Рынок</th><th class="num">Ставок</th><th class="num">ROI</th><th class="num">Hit</th></tr>
+{% for k, v in summary.betting_by_market.items() %}<tr><td>{{ k }}</td><td class="num">{{ v.bets }}</td><td class="num {{ 'pos' if v.roi_flat > 0 else 'neg' }}">{{ v.roi_flat|pct(2) }}</td><td class="num">{{ v.hit_rate|pct(1) }}</td></tr>{% endfor %}</table>{% endif %}
+</div>
+<div class="card scroll"><h3>Уровни уверенности (бэктест)</h3>
+<table><tr><th>Уровень</th><th class="num">Доля</th><th class="num">LL ансамбль</th><th class="num">LL рынок</th><th class="num">Acc</th></tr>
+{% for lvl in ["HIGH","MEDIUM","LOW"] %}{% if lvl in summary.confidence %}{% set c = summary.confidence[lvl] %}
+<tr><td><span class="badge {{ lvl }}">{{ lvl }}</span></td><td class="num">{{ c.share|pct(0) }}</td><td class="num">{{ c.ens_log_loss|num(4) }}</td><td class="num">{{ c.market_log_loss|num(4) }}</td><td class="num">{{ c.accuracy|pct(1) }}</td></tr>{% endif %}{% endfor %}
+</table>
+{% if img_b64 %}<h3>Калибровка</h3><img class="rel" alt="Reliability diagram" src="data:image/png;base64,{{ img_b64 }}">{% endif %}
+</div></div>
+<div class="card scroll"><h3>По сезонам: log-loss и веса ансамбля (подобраны на предыдущем сезоне)</h3>
+<table><tr><th>Сезон</th><th class="num">Матчей</th><th class="num">Рынок</th><th class="num">Без рынка</th><th class="num">Ансамбль</th><th class="num">Dixon-Coles</th><th>Веса (dc / elo / gbm / рынок)</th><th>Калибровка</th></tr>
+{% for s, v in summary.by_season.items() %}<tr><td>{{ s }}/{{ (s|int + 1) % 100 }}</td><td class="num">{{ v.n }}</td><td class="num">{{ v.market|num(4) }}</td><td class="num">{{ v.model_only|num(4) }}</td><td class="num">{{ v.ensemble|num(4) }}</td><td class="num">{{ v.dc|num(4) }}</td>
+<td>{{ v.weights.dc|num }} / {{ v.weights.elo|num }} / {{ v.weights.gbm|num }} / {{ v.weights.market|num }}</td><td>{{ v.calibration }}</td></tr>{% endfor %}
+</table></div>
+<div class="card scroll"><h3>По лигам</h3><table><tr><th>Лига</th><th class="num">Матчей</th><th class="num">Рынок</th><th class="num">Без рынка</th><th class="num">Ансамбль</th></tr>
+{% for k, v in summary.by_league.items() %}<tr><td>{{ k }}</td><td class="num">{{ v.n }}</td><td class="num">{{ v.market|num(4) }}</td><td class="num">{{ v.model_only|num(4) }}</td><td class="num">{{ v.ensemble|num(4) }}</td></tr>{% endfor %}</table></div>
+{% endif %}
+
+<h2>2. Все матчи дня (по уверенности)</h2>
+{% if details %}
+<div class="card scroll"><table>
+<tr><th>Ур.</th><th>Лига</th><th>Время</th><th>Матч</th><th class="num">П1</th><th class="num">X</th><th class="num">П2</th><th class="num">ТБ2.5</th><th class="num">ОЗ</th><th>Топ-3 счёта</th><th>Ставка</th>{% if r.mode == "replay" %}<th>Факт</th>{% endif %}</tr>
+{% for d in details %}<tr><td><span class="badge {{ d.confidence }}">{{ d.confidence }}</span></td><td>{{ d.league }}</td><td>{{ d.time_local or "" }}</td><td>{{ d.home }} – {{ d.away }}{% if d.low_data %} <span class="badge LOW">LOW DATA</span>{% endif %}</td>
+<td class="num">{{ d.p_home|pct }}</td><td class="num">{{ d.p_draw|pct }}</td><td class="num">{{ d.p_away|pct }}</td><td class="num">{{ d.p_over25|pct }}</td><td class="num">{{ d.p_btts|pct }}</td>
+<td>{{ d.top_scores }}</td><td>{% if d.best_bet %}{{ d.best_bet }} <span class="pos">({{ d.best_bet_value|pct(1) }})</span>{% else %}—{% endif %}</td>{% if r.mode == "replay" %}<td>{{ d.actual }}</td>{% endif %}</tr>{% endfor %}
+</table></div>
+{% else %}
+<div class="card">Прогнозов нет: список матчей на дату не получен (см. предупреждения). Данные не подставляются и не выдумываются.</div>
+{% endif %}
+
+<h2>3. Лучшие value-ставки дня (не больше {{ betting.max_best_bets }})</h2>
+<div class="card scroll">{% if best %}<table><tr><th>Матч</th><th>Ставка</th><th class="num">P модели</th><th class="num">Справедл. кэф</th><th class="num">Лучший кэф</th><th>Букмекер</th><th class="num">Value</th><th class="num">Размер (¼ Kelly)</th><th>Ур.</th></tr>
+{% for d in best %}{% for m in d.markets if m.bet and m.market == d.best_bet_market %}
+<tr><td>{{ d.home }} – {{ d.away }}</td><td>{{ m.market }}</td><td class="num">{{ m.p|pct(1) }}</td><td class="num">{{ m.fair_odds|num }}</td><td class="num">{{ m.best_odds|num }}</td><td>{{ m.bookmaker }}</td><td class="num pos">{{ m.value|pct(1) }}</td><td class="num">{{ m.stake_frac|pct(2) }} ({{ m.stake|num(0) }})</td><td><span class="badge {{ d.confidence }}">{{ d.confidence }}</span></td></tr>
+{% endfor %}{% endfor %}</table>
+<div class="small">Правило: value = p × odds − 1 &gt; {{ (betting.min_value*100)|round|int }}%, уверенность не ниже MEDIUM, ставка = ¼ Kelly, не более {{ (betting.max_stake*100)|round|int }}% банка. Бэктест показывает, насколько этим сигналам можно доверять (см. раздел 1).</div>
+{% else %}Сегодня нет ставок, удовлетворяющих правилам.{% endif %}</div>
+
+<h2>4. Пропустить</h2>
+<div class="card scroll">{% if skip %}<table><tr><th>Матч</th><th>Причины</th></tr>
+{% for d in skip %}<tr><td>{{ d.home }} – {{ d.away }} ({{ d.league }})</td><td style="white-space:normal">{{ [d.low_reasons, d.conf_reasons]|select|join("; ") }}</td></tr>{% endfor %}</table>
+{% else %}Нет матчей с недостатком данных или сильным расхождением моделей.{% endif %}</div>
+
+{% if details %}
+<h2>5. Подробно по матчам</h2>
+<div class="grid">{% for d in details %}<div class="card match">
+<h3>{{ d.home }} – {{ d.away }} <span class="badge {{ d.confidence }}">{{ d.confidence }}</span></h3>
+<div class="small">{{ d.league }} · {{ d.date }} {{ d.time_local or "" }} · полнота данных {{ d.completeness|pct }} · расхождение моделей σ={{ d.disagreement|num }} · разрыв с рынком {{ d.market_gap|pct }}{% if d.referee %} · судья {{ d.referee }}{% endif %}{% if d.actual %} · факт {{ d.actual }}{% endif %}</div>
+<div class="scroll"><table><tr><th>Рынок</th><th class="num">P</th><th class="num">Справ.</th><th class="num">Лучший</th><th class="num">Value</th><th class="num">Ставка</th></tr>
+{% for m in d.markets %}<tr><td>{{ m.market }}</td><td class="num">{{ m.p|pct(1) }}</td><td class="num">{{ m.fair_odds|num }}</td><td class="num">{{ m.best_odds|num }}</td>
+<td class="num {{ 'pos' if m.value == m.value and m.value > 0 else 'neg' }}">{{ m.value|pct(1) }}</td><td class="num">{{ m.stake_frac|pct(2) if m.bet else "—" }}</td></tr>{% endfor %}
+<tr><td>Обе забьют</td><td class="num">{{ d.p_btts|pct(1) }}</td><td class="num">{{ (1/d.p_btts if d.p_btts else none)|num }}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+</table></div>
+<div class="small">Модели (П1): DC {{ d.dc_home|pct }} · Elo {{ d.elo_home|pct }} · GBM {{ d.gbm_home|pct }} · рынок {{ d.mk_home|pct }} → итог {{ d.p_home|pct }}. Счета: {{ d.top_scores }}</div>
+{% for line in d.explain_lines %}<p class="expl">{{ line }}</p>{% endfor %}
+{% if d.conf_reasons or d.low_reasons %}<p class="expl"><b>Риски:</b> {{ [d.low_reasons, d.conf_reasons]|select|join("; ") }}</p>{% endif %}
+</div>{% endfor %}</div>
+{% endif %}
+
+<h2>6. Источники и время загрузки</h2>
+<div class="card scroll"><table><tr><th>Источник</th><th>Статус</th><th class="num">Запросов</th><th class="num">Из кэша</th><th>Данные загружены (UTC)</th><th>Комментарий</th></tr>
+{% for s in r.sources %}<tr><td>{{ s.source }}</td><td>{{ s.status }}</td><td class="num">{{ s.requests }}</td><td class="num">{{ s.from_cache }}</td><td>{{ s.first_fetched_at }}{% if s.last_fetched_at != s.first_fetched_at %} … {{ s.last_fetched_at }}{% endif %}</td><td style="white-space:normal">{{ s.detail }}</td></tr>{% endfor %}
+</table></div>
+<p class="small">Все вероятности — оценки модели, а не гарантии исхода. Ставки связаны с риском потери средств; бэктест не гарантирует будущих результатов.</p>
+</div></body></html>
